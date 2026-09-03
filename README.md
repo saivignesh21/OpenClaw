@@ -168,6 +168,42 @@ openclaw-guardrail/
 | `SANDBOX_MEM_LIMIT` | `512m` | Container memory cap |
 | `SANDBOX_NETWORK_DISABLED` | `true` | Blocks all network access from the sandbox |
 
+## Improvements implemented
+
+The current version includes the following hardening and quality-of-life improvements:
+
+- Strict Pydantic validation for every LLM-generated action. Unknown fields,
+  invalid action types, missing file paths, invalid target-path combinations,
+  oversized content, and empty rationales are rejected before guardrails run.
+- Stronger Docker isolation with a non-root user, all Linux capabilities
+  dropped, `no-new-privileges`, a 128-process limit, a capped temporary
+  filesystem, disabled networking, memory/CPU limits, and per-action cleanup.
+- Safe base64 transport for generated file content, including multiline files
+  and content containing quotes.
+- Consistent Windows and POSIX path-traversal protection for file reads and
+  writes, including empty paths and backslash-based traversal.
+- Semantic review fails closed for malformed model output, unavailable Ollama,
+  timeouts, and unexpected reviewer errors.
+- GitHub Actions CI runs Python compilation, the guardrail test suite, and the
+  Docker sandbox image build on pushes and pull requests.
+
+## Verification results
+
+The local pure-Python verification completed successfully:
+
+```text
+15 guardrail tests passed
+Strict action schema checks passed
+Semantic fail-closed check passed
+Python compilation passed
+Sandbox command-builder checks passed
+```
+
+The full end-to-end agent loop requires Docker Desktop, Ollama, the configured
+models, and the dependencies installed from `requirements.txt`. GitHub Actions
+provides the repeatable test and image-build checks; run the end-to-end flow
+locally after completing the Windows setup above.
+
 
 
 ## Extending it
