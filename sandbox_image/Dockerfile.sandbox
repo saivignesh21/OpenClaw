@@ -1,0 +1,18 @@
+# Minimal, disposable image that the agent's approved actions run inside.
+# Deliberately does NOT include network tools, compilers, or package
+# managers beyond pip, to keep the attack surface small even if a
+# guardrail is bypassed.
+
+FROM python:3.11-slim
+
+# Non-root user: even inside the container, avoid running as root.
+RUN useradd --create-home --uid 1000 sandboxuser
+
+WORKDIR /workspace
+
+# Common testing/dev tools the agent will likely need for repo tasks.
+RUN pip install --no-cache-dir pytest pytest-cov
+
+USER sandboxuser
+
+# No CMD/ENTRYPOINT — the runner always supplies an explicit command.
