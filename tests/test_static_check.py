@@ -89,3 +89,13 @@ def test_dispatch_python_action_blocks_subprocess_absent_by_default():
     code = "import subprocess\nsubprocess.run(['pytest'])"
     result = run_static_check({"type": "python", "content": code})
     assert result.allowed  # documents current behavior; tighten if needed
+
+
+def test_blocks_windows_path_escape_on_file_read():
+    result = run_static_check({"type": "file_read", "target_path": r"..\secret.txt"})
+    assert not result.allowed
+
+
+def test_blocks_empty_file_path():
+    result = run_static_check({"type": "file_read", "target_path": ""})
+    assert not result.allowed

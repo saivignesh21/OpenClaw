@@ -9,6 +9,9 @@ import json
 import os
 import re
 import ollama
+from pydantic import ValidationError
+
+from src.state import ProposedActionModel
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "llama3.1:8b")
@@ -79,4 +82,8 @@ def generate_action(objective: str, plan_text: str, repo_context: str) -> dict:
         f"Repository context:\n{repo_context}\n\n"
         "Propose the single next action as JSON."
     )
-    return generate_json(prompt, model=CODER_MODEL, system=system)
+    raw_action = generate_json(prompt, model=CODER_MODEL, system=system)
+    try:
+        return ProposedActionModel.model_validate(raw_action).model_dump(exclude_none=True)
+    except ValidationError as e:
+        raise ValueError(f"Invalid action returned by model: {e}") from e

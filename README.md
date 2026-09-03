@@ -168,17 +168,7 @@ openclaw-guardrail/
 | `SANDBOX_MEM_LIMIT` | `512m` | Container memory cap |
 | `SANDBOX_NETWORK_DISABLED` | `true` | Blocks all network access from the sandbox |
 
----
 
-## Why this is worth showing in an interview
-
-Most student "AI agent" projects stop at "an LLM that writes and runs code."
-This one demonstrates the part that enterprises are currently struggling
-with in production (per 2026 industry reporting: <20% of companies have a
-mature agent governance model): **the boundary between an agent deciding
-to do something and it actually happening.** The dashboard gives you a
-concrete artifact — a log of real attempted violations — to walk through
-live in an interview rather than describing the idea abstractly.
 
 ## Extending it
 

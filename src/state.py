@@ -9,6 +9,7 @@ can deserialize logged states without guessing at shape.
 from __future__ import annotations
 from typing import TypedDict, Literal, Optional
 from typing_extensions import NotRequired
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 ActionType = Literal["python", "shell", "file_write", "file_read"]
@@ -20,6 +21,26 @@ class ProposedAction(TypedDict):
     content: str            # code, shell command, or file content
     target_path: NotRequired[str]   # relevant for file_write/file_read
     rationale: str           # why the agent believes this serves the objective
+
+
+class ProposedActionModel(BaseModel):
+    """Strict boundary for untrusted action JSON returned by the LLM."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: ActionType
+    content: str = Field(max_length=200_000)
+    target_path: str | None = None
+    rationale: str = Field(min_length=1, max_length=2_000)
+
+    @model_validator(mode="after")
+    def validate_target_path(self):
+        needs_path = self.type in {"file_write", "file_read"}
+        if needs_path and not self.target_path:
+            raise ValueError(f"{self.type} actions require target_path")
+        if not needs_path and self.target_path is not None:
+            raise ValueError(f"{self.type} actions must not include target_path")
+        return self
 
 
 class CheckResult(TypedDict):
