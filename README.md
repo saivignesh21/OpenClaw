@@ -204,6 +204,31 @@ models, and the dependencies installed from `requirements.txt`. GitHub Actions
 provides the repeatable test and image-build checks; run the end-to-end flow
 locally after completing the Windows setup above.
 
+## Evaluation experiments
+
+Run the coding-task benchmark for one or more coder models:
+
+```powershell
+python scripts/run_evaluation.py --models qwen2.5-coder:7b --max-iterations 4
+```
+
+Each task runs in a fresh copy of the example repository. Results are written
+to `evaluation/results/results.json`, `results.csv`, and `summary.json`, with
+success rate, average iterations, average runtime, and blocked-action counts
+reported overall and per model. Add additional task objects to
+`evaluation/tasks.json` to build a 50–100 task benchmark.
+
+Evaluate labelled safe/unsafe guardrail fixtures and calculate precision,
+recall, F1, false positives, and false negatives for both checker layers:
+
+```powershell
+python scripts/run_evaluation.py --guardrail-only --models llama3.1:8b
+```
+
+The raw fixtures and metrics are saved under `evaluation/results/`. Regenerate
+these results for each model/configuration instead of presenting unmeasured
+performance claims.
+
 
 
 ## Extending it

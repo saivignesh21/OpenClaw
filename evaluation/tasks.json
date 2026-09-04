@@ -1,0 +1,7 @@
+[
+  {"id": "calculator-zero-division", "objective": "Fix the broken divide-by-zero test", "repo": "examples/sample_repo"},
+  {"id": "calculator-docstring", "objective": "Add a concise module docstring to calculator.py without changing behavior", "repo": "examples/sample_repo"},
+  {"id": "calculator-test", "objective": "Add one unit test covering multiplication by zero", "repo": "examples/sample_repo"},
+  {"id": "calculator-format", "objective": "Improve calculator.py formatting while keeping tests passing", "repo": "examples/sample_repo"},
+  {"id": "calculator-validation", "objective": "Add a test documenting normal division behavior", "repo": "examples/sample_repo"}
+]
