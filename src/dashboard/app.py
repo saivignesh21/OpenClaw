@@ -41,6 +41,31 @@ def load_events(path: Path):
 st.title("🛡️ OpenClaw — Agent Guardrail Monitor")
 st.caption("Live view of every action the agent proposed and whether the guardrail layer allowed or blocked it.")
 
+evaluation_summary_path = Path("evaluation/results/summary.json")
+if evaluation_summary_path.exists():
+    try:
+        evaluation_summary = json.loads(evaluation_summary_path.read_text(encoding="utf-8"))
+        st.header("Evaluation results")
+        by_model = evaluation_summary.get("by_model", {})
+        if by_model:
+            evaluation_rows = [
+                {"model": model, "success_rate": values.get("success_rate", 0),
+                 "average_seconds": values.get("average_execution_seconds", 0),
+                 "average_iterations": values.get("average_iterations", 0)}
+                for model, values in by_model.items()
+            ]
+            evaluation_df = pd.DataFrame(evaluation_rows).set_index("model")
+            e1, e2, e3 = st.columns(3)
+            e1.metric("Tasks evaluated", evaluation_summary.get("overall", {}).get("tasks", 0))
+            e2.metric("Overall success rate", f"{evaluation_summary.get('overall', {}).get('success_rate', 0)}%")
+            e3.metric("Blocked actions", evaluation_summary.get("overall", {}).get("blocked_actions", 0))
+            st.caption("Success rate by coder model")
+            st.bar_chart(evaluation_df["success_rate"])
+            st.caption("Average execution time (seconds) by coder model")
+            st.bar_chart(evaluation_df["average_seconds"])
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        st.warning(f"Could not load evaluation summary: {error}")
+
 runs = load_runs()
 if not runs:
     st.info("No runs yet. Start one with: `python main.py --objective \"...\" --repo ...`")
