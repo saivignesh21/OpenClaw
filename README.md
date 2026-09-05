@@ -1,245 +1,284 @@
-# OpenClaw — Local Autonomous Dev Agent with Guardrail Sandbox
+# OpenClaw
 
-A local, fully self-hosted autonomous coding agent that plans and executes
-code changes inside an isolated Docker sandbox, with a two-layer guardrail
-system (static AST inspection + LLM-based semantic intent review) sitting
-between "the agent decided to do something" and "the agent actually did it."
+OpenClaw is a local coding agent that plans repository changes, reviews each
+action with two guardrail layers, executes approved work in a disposable Docker
+sandbox, and evaluates the result by running tests.
 
-Built to demonstrate the pattern the industry is converging on for
-agentic AI safety in 2026: orchestration + sandboxed execution + policy
-enforcement, with full observability into what was blocked and why.
+The project is designed to be reproducible on Windows with Docker Desktop and
+Ollama. The dashboard reads the agent's JSONL event log so you can follow every
+proposed, rejected, and executed action.
 
----
+## Contents
+
+- [What it does](#what-it-does)
+- [Architecture](#architecture)
+- [Safety model](#safety-model)
+- [Requirements](#requirements)
+- [Windows setup](#windows-setup)
+- [Run OpenClaw](#run-openclaw)
+- [Dashboard](#dashboard)
+- [Tests and verification](#tests-and-verification)
+- [Evaluation experiments](#evaluation-experiments)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+
+## What it does
+
+Given an objective and a repository, OpenClaw repeatedly:
+
+1. creates a plan;
+2. generates one structured action;
+3. checks the action with deterministic rules;
+4. reviews the action's intent with a second local LLM call;
+5. executes approved work in Docker;
+6. runs validation tests in the same sandbox; and
+7. either reports success or replans until the iteration limit is reached.
+
+The agent can inspect files, write files, run shell commands, and run Python
+snippets. Every action is validated before it reaches the guardrails.
 
 ## Architecture
 
-```
- User objective
-      │
-      ▼
- ┌─────────┐     ┌────────────────┐     ┌───────────────┐     ┌──────────────┐
- │  PLAN   │ ──▶ │ GENERATE ACTION │ ──▶ │ STATIC CHECK   │ ──▶ │ SEMANTIC CHECK│
- └─────────┘     └────────────────┘     └───────┬────────┘     └───────┬───────┘
-                                                 │ fail                 │ fail
-                                                 ▼                      ▼
-                                          [REJECT + REPLAN]      [REJECT + REPLAN]
-                                                                        │ pass
-                                                                        ▼
-                                                              ┌───────────────────┐
-                                                              │ EXECUTE IN DOCKER  │
-                                                              │ (no net, capped    │
-                                                              │  CPU/mem, timeout) │
-                                                              └─────────┬──────────┘
-                                                                        ▼
-                                                              ┌───────────────────┐
-                                                              │     EVALUATE       │
-                                                              └─────────┬──────────┘
-                                                          done ◀────────┴────────▶ loop (max N iters)
+```text
+Objective
+   |
+   v
+Plan -> Generate action -> Static guardrail -> Semantic guardrail
+                                      |                 |
+                                   reject              reject
+                                      |                 |
+                                      +----> Replan <---+
+                                                        |
+                                                        v
+                                             Docker sandbox execution
+                                                        |
+                                                        v
+                                             Test validation / evaluation
+                                                        |
+                                  success <--------------+--------------> replan
 ```
 
-Every step is logged to `logs/run_<timestamp>.jsonl` and rendered live in
-the Streamlit dashboard, including every **rejected** action and the
-reason it was rejected — that log is the actual point of this project.
+The graph is implemented in [`src/graph.py`](src/graph.py). Run events are
+written to `logs/run_<timestamp>.jsonl`.
 
----
+## Safety model
 
-## Stack
+OpenClaw uses defense in depth:
 
-| Layer | Tool | Why |
-|---|---|---|
-| Orchestration | LangGraph | Explicit state graph — the guardrail is a real node, not a prompt suggestion |
-| Local LLM | Ollama (Llama 3.1 8B / Qwen2.5-Coder 7B) | Runs fully offline, fits 8GB VRAM |
-| Sandbox | Docker Desktop (WSL2 backend) | Real process/filesystem/network isolation on Windows |
-| Static guardrail | Python `ast` module + shell lexer | Deterministic, fast, catches known-bad patterns |
-| Semantic guardrail | Second LLM call | Catches off-task behavior that isn't a blocked keyword |
-| Dashboard | Streamlit | Live view of every action attempted, allowed, or blocked |
+- **Action schema:** Pydantic validates the action type, path, rationale, and
+  content limits before execution.
+- **Static guardrail:** AST inspection checks Python actions; shell and path
+  rules catch known-dangerous patterns and workspace escapes.
+- **Semantic guardrail:** a separate Ollama review checks whether the action
+  matches the objective. Invalid, unavailable, timed-out, or unexpected
+  reviewer responses fail closed.
+- **Docker sandbox:** approved actions run with networking disabled, resource
+  limits, a non-root user, dropped capabilities, `no-new-privileges`, a process
+  limit, and cleanup after each action.
 
----
+The sandbox image lives in `sandbox_image/`. That directory name is deliberate:
+using `docker/` beside the source can shadow Python's installed `docker`
+package during imports.
 
-## Prerequisites (Windows)
+## Requirements
 
-1. **Docker Desktop** — https://www.docker.com/products/docker-desktop/
-   Make sure WSL2 backend is enabled (default on modern installs).
-   Verify: `docker run hello-world`
+- Windows 10/11
+- Python 3.11 or newer
+- Docker Desktop with the WSL2 backend enabled
+- Ollama for local planning, coding, and semantic review
+- Git (recommended)
 
-2. **Ollama** — https://ollama.com/download/windows
-   After installing:
-   ```powershell
-   ollama pull llama3.1:8b
-   ollama pull qwen2.5-coder:7b
-   ```
+Install Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/),
+Ollama from [ollama.com](https://ollama.com/download/windows), and Python from
+[python.org](https://www.python.org/downloads/).
 
-3. **Python 3.11+** — https://www.python.org/downloads/
-   Verify: `python --version`
+## Windows setup
 
-4. **Git** (optional, for the example repo) — https://git-scm.com/download/win
-
----
-
-## Setup
+Open PowerShell in the repository root:
 
 ```powershell
-# 1. Extract this zip, then from the project root:
+python --version
+docker version
+ollama --version
+
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Copy the env template and adjust if needed
-copy .env.example .env
-
-# 4. Build the sandbox image (this is what the agent's code runs inside)
 docker build -t openclaw-sandbox -f sandbox_image/Dockerfile.sandbox .
-
-# 5. Make sure Ollama is running (it usually auto-starts on Windows)
-ollama serve
+ollama pull llama3.1:8b
+ollama pull qwen2.5-coder:7b
 ```
 
----
-
-## Running the agent
+If PowerShell blocks activation, run this once in an elevated PowerShell:
 
 ```powershell
-# Run against the included broken example repo
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Ollama normally starts with Windows. If it is not running, start it in a
+separate terminal with `ollama serve`.
+
+## Run OpenClaw
+
+The included sample repository contains a deliberately broken calculator test.
+Run the agent against it with:
+
+```powershell
+venv\Scripts\Activate.ps1
 python main.py --objective "Find the broken unit test and fix it" --repo examples/sample_repo
-
-# Run against your own repo
-python main.py --objective "Add input validation to the parse_config function" --repo C:\path\to\your\repo
 ```
 
-## Running the dashboard (in a second terminal)
+Run it against another local repository by supplying an absolute path:
 
 ```powershell
-venv\Scripts\activate
+python main.py --objective "Add input validation to parse_config" --repo C:\path\to\repo
+```
+
+The terminal prints the final outcome. Detailed events remain in `logs/`.
+
+## Dashboard
+
+Start the dashboard in a second PowerShell window from the project root:
+
+```powershell
+venv\Scripts\Activate.ps1
 streamlit run src/dashboard/app.py
 ```
 
-Open the URL Streamlit prints (usually `http://localhost:8501`). It reads
-the same `logs/*.jsonl` files the agent writes, live, and shows:
-- Every planned action
-- Static check verdict + reason
-- Semantic check verdict + reason
-- Execution result (if it ran)
-- A running "blocked vs allowed" count
+Open the local URL printed by Streamlit, normally
+`http://localhost:8501`. The dashboard refreshes the JSONL log and displays:
 
----
+- the current run and iteration;
+- proposed actions and their rationales;
+- static and semantic verdicts with reasons;
+- sandbox output, errors, and validation results; and
+- allowed, blocked, and executed action counts.
 
-## Project layout
+## Tests and verification
 
-```
-openclaw-guardrail/
-├── main.py                      # CLI entry point
-├── requirements.txt
-├── .env.example
-├── src/
-│   ├── state.py                 # LangGraph state schema
-│   ├── graph.py                 # The LangGraph state machine
-│   ├── llm.py                   # Ollama client wrapper
-│   ├── logger.py                # JSONL structured logging
-│   ├── guardrails/
-│   │   ├── static_check.py      # AST + shell-lexer based rule checks
-│   │   └── semantic_check.py    # LLM-based intent review
-│   ├── sandbox/
-│   │   └── docker_runner.py     # Disposable, isolated container execution
-│   └── dashboard/
-│       └── app.py               # Streamlit live monitoring UI
-├── sandbox_image/
-│   └── Dockerfile.sandbox       # Minimal image the agent's code runs inside
-│                                 (named sandbox_image, not "docker", so it
-│                                 doesn't shadow the installed docker pip package)
-├── examples/
-│   └── sample_repo/             # Tiny repo with one deliberately broken test
-└── tests/
-    └── test_static_check.py     # Unit tests for the guardrail logic itself
+The pure-Python test suite does not require Ollama or Docker:
+
+```powershell
+venv\Scripts\Activate.ps1
+python -m pytest -q tests/
 ```
 
----
+The sample repository is expected to fail before the agent repairs it. After a
+successful agent run, verify it separately:
 
-## Configuration (`.env`)
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `OLLAMA_HOST` | `http://localhost:11434` | Where Ollama is running |
-| `PLANNER_MODEL` | `llama3.1:8b` | Model used for planning + semantic review |
-| `CODER_MODEL` | `qwen2.5-coder:7b` | Model used for code generation |
-| `MAX_ITERATIONS` | `8` | Hard cap so the loop can't run forever |
-| `SANDBOX_TIMEOUT_SECONDS` | `30` | Per-action execution timeout |
-| `SANDBOX_MEM_LIMIT` | `512m` | Container memory cap |
-| `SANDBOX_NETWORK_DISABLED` | `true` | Blocks all network access from the sandbox |
-
-## Improvements implemented
-
-The current version includes the following hardening and quality-of-life improvements:
-
-- Strict Pydantic validation for every LLM-generated action. Unknown fields,
-  invalid action types, missing file paths, invalid target-path combinations,
-  oversized content, and empty rationales are rejected before guardrails run.
-- Stronger Docker isolation with a non-root user, all Linux capabilities
-  dropped, `no-new-privileges`, a 128-process limit, a capped temporary
-  filesystem, disabled networking, memory/CPU limits, and per-action cleanup.
-- Safe base64 transport for generated file content, including multiline files
-  and content containing quotes.
-- Consistent Windows and POSIX path-traversal protection for file reads and
-  writes, including empty paths and backslash-based traversal.
-- Semantic review fails closed for malformed model output, unavailable Ollama,
-  timeouts, and unexpected reviewer errors.
-- GitHub Actions CI runs Python compilation, the guardrail test suite, and the
-  Docker sandbox image build on pushes and pull requests.
-
-## Verification results
-
-The local pure-Python verification completed successfully:
-
-```text
-15 guardrail tests passed
-Strict action schema checks passed
-Semantic fail-closed check passed
-Python compilation passed
-Sandbox command-builder checks passed
+```powershell
+python -m pytest -q examples/sample_repo/
 ```
 
-The full end-to-end agent loop requires Docker Desktop, Ollama, the configured
-models, and the dependencies installed from `requirements.txt`. GitHub Actions
-provides the repeatable test and image-build checks; run the end-to-end flow
-locally after completing the Windows setup above.
+GitHub Actions also compiles the source, runs `tests/`, and builds the Docker
+sandbox image. The sample repository is intentionally excluded from CI because
+its broken test is part of the demonstration fixture.
 
 ## Evaluation experiments
 
-Run the coding-task benchmark for one or more coder models:
+The benchmark runner creates an isolated workspace for each task and records
+machine-readable results. Run one or more coder models like this:
 
 ```powershell
 python scripts/run_evaluation.py --models qwen2.5-coder:7b --max-iterations 4
 ```
 
-Each task runs in a fresh copy of the example repository. Results are written
-to `evaluation/results/results.json`, `results.csv`, and `summary.json`, with
-success rate, average iterations, average runtime, and blocked-action counts
-reported overall and per model. Add additional task objects to
-`evaluation/tasks.json` to build a 50–100 task benchmark.
+Results are written to `evaluation/results/` (ignored by Git):
 
-Evaluate labelled safe/unsafe guardrail fixtures and calculate precision,
-recall, F1, false positives, and false negatives for both checker layers:
+- `results.json` and `results.csv` contain task-level records;
+- `summary.json` contains success rate, iterations, runtime, actions, and
+  blocked-action totals; and
+- checkpoints allow an interrupted run to resume.
+
+The repository includes 20 coding-task fixtures. Add task objects to
+`evaluation/tasks.json` when expanding the benchmark.
+
+To evaluate the labelled guardrail fixtures without running the coding loop:
 
 ```powershell
 python scripts/run_evaluation.py --guardrail-only --models llama3.1:8b
 ```
 
-The raw fixtures and metrics are saved under `evaluation/results/`. Regenerate
-these results for each model/configuration instead of presenting unmeasured
-performance claims.
+This reports precision, recall, F1, false positives, and false negatives for
+the static and semantic layers. Treat generated metrics as experiment output;
+rerun the command after changing models, prompts, or policies.
 
+## Configuration
 
+Copy `.env.example` to `.env` and adjust as needed:
 
-## Extending it
+| Variable | Default | Purpose |
+|---|---|---|
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
+| `PLANNER_MODEL` | `llama3.1:8b` | Planner and semantic-review model |
+| `CODER_MODEL` | `qwen2.5-coder:7b` | Action-generation model |
+| `MAX_ITERATIONS` | `8` | Maximum graph iterations |
+| `SANDBOX_TIMEOUT_SECONDS` | `30` | Per-action timeout |
+| `SANDBOX_MEM_LIMIT` | `512m` | Container memory limit |
+| `SANDBOX_NETWORK_DISABLED` | `true` | Disable sandbox networking |
 
-- Swap Ollama for a hosted Claude/OpenAI API call in `src/llm.py` (interface is already provider-agnostic)
-- Add a policy config file (`policies.yaml`) so blocklists are editable without touching code
-- Add per-agent scoped credentials if you extend this to multi-agent (see `graph.py` — it's structured so adding a second agent node is straightforward)
-- Swap Streamlit for a proper web app (FastAPI + React) once the core logic is proven
+## Project layout
 
-## Known limitations (be upfront about these if asked)
+```text
+OpenClaw/
+├── main.py
+├── requirements.txt
+├── .env.example
+├── src/
+│   ├── graph.py                  # LangGraph state machine
+│   ├── state.py                  # Typed graph state and history
+│   ├── llm.py                    # Ollama and action-schema integration
+│   ├── logger.py                 # Structured JSONL logging
+│   ├── evaluation.py             # Benchmark metrics and result writers
+│   ├── guardrails/
+│   │   ├── static_check.py       # AST, shell, and path checks
+│   │   └── semantic_check.py     # LLM intent review
+│   ├── sandbox/docker_runner.py  # Disposable Docker execution
+│   └── dashboard/app.py          # Streamlit monitoring dashboard
+├── sandbox_image/Dockerfile.sandbox
+├── examples/sample_repo/         # Deliberately broken demo repository
+├── evaluation/                   # Tasks and labelled guardrail fixtures
+├── scripts/run_evaluation.py
+└── tests/                        # Guardrail and metric unit tests
+```
 
-- Static checks use pattern + AST matching — this reduces but does not eliminate the chance of a cleverly obfuscated bypass. The Docker sandbox is the layer that has to hold if the guardrail is fooled — that's intentional defense-in-depth, not a hole to be "fixed" away.
-- The semantic check depends on the local model's reasoning quality; an 8B model will occasionally miss subtle misalignment. Swapping in a larger hosted model for just this check improves reliability.
-- This is a portfolio/learning project, not a hardened production security boundary — don't run it against untrusted/adversarial code without additional isolation (e.g., a VM, not just a container).
+## Troubleshooting
+
+**`docker version` cannot connect:** start Docker Desktop and wait until its
+status is “Running”. Confirm that WSL2 integration is enabled.
+
+**Ollama connection errors:** start `ollama serve`, verify
+`http://localhost:11434`, and confirm both models were pulled.
+
+**The dashboard is empty:** run the agent once from the project root and check
+that a `logs/*.jsonl` file exists. The dashboard reads logs from the current
+working directory.
+
+**The sample test still fails:** that is expected before the agent runs. Use
+`python -m pytest -q tests/` for the guardrail suite, then rerun the agent and
+validate `examples/sample_repo/`.
+
+**A benchmark stops part-way through:** rerun the same command. The evaluation
+checkpoint is designed to continue completed model/task combinations.
+
+## Limitations
+
+Static checks are pattern- and AST-based, so they cannot guarantee detection of
+every obfuscated payload. The Docker sandbox is the containment layer if a
+guardrail misses something.
+
+Semantic review quality depends on the selected local model. A larger reviewer
+model may make better intent decisions, but no LLM review should be treated as
+a complete security boundary.
+
+Do not run this project against untrusted adversarial code without additional
+isolation such as a VM or a separately secured host.
+
+## License
+
+See [LICENSE](LICENSE).
