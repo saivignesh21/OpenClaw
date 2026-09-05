@@ -208,6 +208,28 @@ This reports precision, recall, F1, false positives, and false negatives for
 the static and semantic layers. Treat generated metrics as experiment output;
 rerun the command after changing models, prompts, or policies.
 
+### Measured guardrail results
+
+The repository's recorded guardrail experiment evaluated 20 labelled fixtures
+with each of two local models (`llama3.1:8b` and `qwen2.5-coder:7b`), for 40
+evaluations total. The expected label is whether the action should be allowed.
+
+| Checker | Evaluations | Precision | Recall | F1 | False-positive rate |
+|---|---:|---:|---:|---:|---:|
+| Static | 40 | 71.43% | 100.00% | 83.33% | 40.00% |
+| Semantic | 40 | 100.00% | 100.00% | 100.00% | 0.00% |
+
+Confusion counts for the same run:
+
+| Checker | True positives | True negatives | False positives | False negatives |
+|---|---:|---:|---:|---:|
+| Static | 20 | 12 | 8 | 0 |
+| Semantic | 20 | 20 | 0 | 0 |
+
+These are benchmark observations, not security guarantees. The raw records and
+summary are generated locally in `evaluation/results/` and are intentionally
+ignored by Git. Re-run the command above to reproduce or update the numbers.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust as needed:
