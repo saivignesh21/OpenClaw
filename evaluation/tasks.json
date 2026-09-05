@@ -1,7 +1,22 @@
 [
-  {"id": "calculator-zero-division", "objective": "Fix the broken divide-by-zero test", "repo": "examples/sample_repo"},
-  {"id": "calculator-docstring", "objective": "Add a concise module docstring to calculator.py without changing behavior", "repo": "examples/sample_repo"},
-  {"id": "calculator-test", "objective": "Add one unit test covering multiplication by zero", "repo": "examples/sample_repo"},
-  {"id": "calculator-format", "objective": "Improve calculator.py formatting while keeping tests passing", "repo": "examples/sample_repo"},
-  {"id": "calculator-validation", "objective": "Add a test documenting normal division behavior", "repo": "examples/sample_repo"}
+  {"id":"task_01_add","objective":"Fix add so it returns the sum of two numbers.","repo":"evaluation/benchmark_tasks/task_01","expected_tests":"pytest -q","known_contract":"add(2, 3) returns 5"},
+  {"id":"task_02_subtract","objective":"Fix subtract so it returns the first number minus the second.","repo":"evaluation/benchmark_tasks/task_02","expected_tests":"pytest -q","known_contract":"subtract(5, 2) returns 3"},
+  {"id":"task_03_multiply","objective":"Fix multiply so it returns the product of two numbers.","repo":"evaluation/benchmark_tasks/task_03","expected_tests":"pytest -q","known_contract":"multiply(4, 3) returns 12"},
+  {"id":"task_04_divide","objective":"Fix divide so division by zero raises ValueError as tested.","repo":"evaluation/benchmark_tasks/task_04","expected_tests":"pytest -q","known_contract":"divide(10, 0) raises ValueError"},
+  {"id":"task_05_clamp","objective":"Fix clamp so values below low become low and values above high become high.","repo":"evaluation/benchmark_tasks/task_05","expected_tests":"pytest -q","known_contract":"clamp(-1,0,10)=0 and clamp(11,0,10)=10"},
+  {"id":"task_06_first_even","objective":"Fix first_even so it returns the first even value or None.","repo":"evaluation/benchmark_tasks/task_06","expected_tests":"pytest -q","known_contract":"first_even([1,3,8,10]) returns 8"},
+  {"id":"task_07_vowels","objective":"Fix count_vowels so it counts vowels case-insensitively.","repo":"evaluation/benchmark_tasks/task_07","expected_tests":"pytest -q","known_contract":"count_vowels('OpenClaw') returns 3"},
+  {"id":"task_08_name","objective":"Fix normalize_name so it removes extra spaces and capitalizes each name part.","repo":"evaluation/benchmark_tasks/task_08","expected_tests":"pytest -q","known_contract":"normalize_name('  ada   lovelace ') returns 'Ada Lovelace'"},
+  {"id":"task_09_max","objective":"Fix find_max so it returns the largest list value.","repo":"evaluation/benchmark_tasks/task_09","expected_tests":"pytest -q","known_contract":"find_max([3,9,2]) returns 9"},
+  {"id":"task_10_palindrome","objective":"Fix is_palindrome so it recognizes normalized palindromes.","repo":"evaluation/benchmark_tasks/task_10","expected_tests":"pytest -q","known_contract":"A man, a plan, a canal: Panama is a palindrome"},
+  {"id":"task_11_factorial","objective":"Fix factorial so it computes the factorial of a nonnegative integer.","repo":"evaluation/benchmark_tasks/task_11","expected_tests":"pytest -q","known_contract":"factorial(5) returns 120"},
+  {"id":"task_12_positive","objective":"Fix sum_positive so it sums only positive values.","repo":"evaluation/benchmark_tasks/task_12","expected_tests":"pytest -q","known_contract":"sum_positive([-2,3,4,-1]) returns 7"},
+  {"id":"task_13_parse_bool","objective":"Fix parse_bool so common true and false strings map correctly.","repo":"evaluation/benchmark_tasks/task_13","expected_tests":"pytest -q","known_contract":"parse_bool('true') is True and parse_bool('no') is False"},
+  {"id":"task_14_safe_get","objective":"Fix safe_get so a missing key returns the supplied default.","repo":"evaluation/benchmark_tasks/task_14","expected_tests":"pytest -q","known_contract":"safe_get({},'missing',42) returns 42"},
+  {"id":"task_15_unique","objective":"Fix unique_items so it preserves first-seen order while removing duplicates.","repo":"evaluation/benchmark_tasks/task_15","expected_tests":"pytest -q","known_contract":"unique_items([1,2,1,3]) returns [1,2,3]"},
+  {"id":"task_16_chunk","objective":"Fix chunk so it includes the final incomplete chunk.","repo":"evaluation/benchmark_tasks/task_16","expected_tests":"pytest -q","known_contract":"chunk([1,2,3,4,5],2) returns [[1,2],[3,4],[5]]"},
+  {"id":"task_17_average","objective":"Fix average so it returns the arithmetic mean.","repo":"evaluation/benchmark_tasks/task_17","expected_tests":"pytest -q","known_contract":"average([2,4,6]) returns 4"},
+  {"id":"task_18_capitalize","objective":"Fix capitalize_words so it capitalizes each word while preserving spaces.","repo":"evaluation/benchmark_tasks/task_18","expected_tests":"pytest -q","known_contract":"capitalize_words('hello world') returns 'Hello World'"},
+  {"id":"task_19_fizzbuzz","objective":"Fix fizzbuzz so numbers divisible by both 3 and 5 return FizzBuzz.","repo":"evaluation/benchmark_tasks/task_19","expected_tests":"pytest -q","known_contract":"fizzbuzz(15) returns FizzBuzz"},
+  {"id":"task_20_flatten","objective":"Fix flatten so it preserves every item from nested lists.","repo":"evaluation/benchmark_tasks/task_20","expected_tests":"pytest -q","known_contract":"flatten([[1,2],[3,4]]) returns [1,2,3,4]"}
 ]
