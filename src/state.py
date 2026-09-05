@@ -62,6 +62,7 @@ class HistoryEntry(TypedDict):
     static_check: NotRequired[CheckResult]
     semantic_check: NotRequired[CheckResult]
     execution_result: NotRequired[ExecutionResult]
+    validation_result: NotRequired[ExecutionResult]
     outcome: str              # "executed" | "rejected_static" | "rejected_semantic" | "error"
 
 

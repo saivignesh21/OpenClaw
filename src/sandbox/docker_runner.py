@@ -42,8 +42,15 @@ def _build_command(action: dict) -> list[str]:
         # Base64 avoids quoting and newline edge cases in generated content.
         encoded = base64.b64encode(action["content"].encode("utf-8")).decode("ascii")
         py = (
-            "import base64, pathlib; "
-            f"pathlib.Path({target!r}).write_bytes(base64.b64decode({encoded!r}))"
+            "import ast, base64, pathlib; "
+            f"p=pathlib.Path({target!r}); new=base64.b64decode({encoded!r}).decode('utf-8'); "
+            "old=p.read_text(encoding='utf-8') if p.exists() else ''; "
+            "ot=ast.parse(old) if old else None; nt=ast.parse(new); "
+            "od={n.name:n for n in (ot.body if ot else []) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef))}; "
+            "nd={n.name:n for n in nt.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef))}; "
+            "lines=old.splitlines(keepends=True); "
+            "[(lines.__setitem__(slice(od[name].lineno-1,od[name].end_lineno), new.splitlines(keepends=True)[nd[name].lineno-1:nd[name].end_lineno])) for name in nd if name in od and len(nd)<len(od)]; "
+            "p.write_text(''.join(lines) if old and nd and len(nd)<len(od) and any(name in od for name in nd) else new, encoding='utf-8')"
         )
         return ["python", "-c", py]
     if action_type == "file_read":
